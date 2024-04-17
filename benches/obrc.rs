@@ -14,10 +14,6 @@ struct BenchResult {
 fn main() {
     let tree_dirty = Command::new("git").arg("diff").output().unwrap();
     let tree_dirty = !tree_dirty.stdout.is_empty();
-    if tree_dirty {
-        println!("ERROR: tree dirty (results will not be saved)");
-        std::process::exit(1);
-    }
 
     let hash = Command::new("git")
         .arg("rev-parse")
@@ -47,7 +43,10 @@ fn main() {
         }
     };
 
-    if !tree_dirty {
+    if tree_dirty {
+        println!("ERROR: tree dirty (results will not be saved)");
+        std::process::exit(1);
+    } else {
         og_results.push(BenchResult {
             rev: hash.to_owned(),
             time: time_taken,

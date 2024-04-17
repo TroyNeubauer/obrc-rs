@@ -1,4 +1,4 @@
-use memmap2::{Mmap, MmapOptions};
+use memmap2::{Advice, Mmap, MmapOptions};
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
@@ -11,13 +11,15 @@ pub struct ProcessedStation {
     max: i16,
 }
 
-pub fn split_file(num_threads: usize, data: &[u8]) -> Vec<usize> {
+pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
     let mut poses = vec![0];
     for i in 1..num_threads {
-        let start = data.len() / num_threads * i;
-        let newline = memchr::memchr(b'\n', &data[start..]).expect("Failed to find newline");
-        poses.push(start + newline + 1);
+        let start = mmap.len() / num_threads * i;
+        let newline = memchr::memchr(b'\n', &mmap[start..]).expect("Failed to find newline");
+        let pos = start + newline + 1;
+        poses.push(pos);
     }
+    mmap.advise(Advice::Sequential).unwrap();
 
     poses
 }
