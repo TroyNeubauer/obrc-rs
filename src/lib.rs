@@ -14,9 +14,11 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
     let mut stations: Vec<ProcessedStation> = vec![];
     let file = File::open(input_path).unwrap();
     let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
-    let bytes: &[u8] = &mmap;
 
-    for line in bytes.split(|b| *b == b'\n') {
+    let mut last_pos = 0;
+    for next_pos in memchr::memchr_iter(b'\n', &mmap) {
+        let line = &mmap[last_pos..next_pos];
+        last_pos = next_pos + 1;
         if line.is_empty() {
             continue;
         }
