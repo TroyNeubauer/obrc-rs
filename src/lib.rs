@@ -69,12 +69,11 @@ pub fn format_results(stations: &[ProcessedStation]) -> String {
     out.push_str("{");
     for (i, station) in stations.iter().enumerate() {
         use std::fmt::Write;
+        let min = station.min as f32 / 10.0;
         let avg = station.avg_tmp as f32 / 10.0 / station.avg_count as f32;
-        let _ = write!(
-            &mut out,
-            "{}={:.1}/{:.1}/{:.1}",
-            station.name, station.min, avg, station.max
-        );
+        let max = station.max as f32 / 10.0;
+        let _ = write!(&mut out, "{}={min:.1}/{avg:.1}/{max:.1}", station.name,);
+
         if i != stations.len() - 1 {
             let _ = write!(&mut out, ", ");
         }
