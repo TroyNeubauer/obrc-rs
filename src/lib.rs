@@ -17,6 +17,10 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
     let bytes: &[u8] = &mmap;
 
     for line in bytes.split(|b| *b == b'\n') {
+        if line.is_empty() {
+            println!("Found empty line");
+            continue;
+        }
         let line = std::str::from_utf8(line).unwrap();
         // `City of San Marino;30.0`
         let Some((name, temp)) = line.split_once(';') else {
