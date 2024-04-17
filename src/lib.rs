@@ -1,3 +1,4 @@
+use memchr::memchr;
 use memmap2::{Advice, Mmap, MmapOptions};
 use std::collections::HashMap;
 use std::fs::File;
@@ -5,7 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub struct ProcessedStation {
-    name: String,
+    name: Vec<u8>,
     min: i16,
     avg_tmp: i64,
     avg_count: usize,
@@ -16,7 +17,7 @@ pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
     let mut poses = vec![0];
     for i in 1..num_threads {
         let start = mmap.len() / num_threads * i;
-        let newline = memchr::memchr(b'\n', &mmap[start..]).expect("Failed to find newline");
+        let newline = memchr(b'\n', &mmap[start..]).expect("Failed to find newline");
         let pos = start + newline + 1;
         poses.push(pos);
     }
@@ -25,12 +26,14 @@ pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
     poses
 }
 
+pub type Name = Vec<u8>;
+
 pub fn thread(
     data: Arc<Mmap>,
     start_idx: usize,
     end_idx: usize,
-) -> HashMap<String, ProcessedStation> {
-    let mut stations: HashMap<String, ProcessedStation> = HashMap::new();
+) -> HashMap<Name, ProcessedStation> {
+    let mut stations: HashMap<Name, ProcessedStation> = HashMap::new();
 
     let data = &data[start_idx..end_idx];
 
@@ -42,14 +45,15 @@ pub fn thread(
             continue;
         }
 
-        let line = std::str::from_utf8(line).unwrap();
         // `City of San Marino;30.0`
-        let Some((name, temp_str)) = line.split_once(';') else {
-            panic!("Line missing ; seperator! {line}");
-        };
-        let Some((temp_int, temp_dec)) = temp_str.split_once('.') else {
-            panic!("Line temp missing dot: {temp_str}");
-        };
+        let semi_pos = memchr(b';', line).unwrap();
+        let name = &line[..semi_pos];
+        let temp_str = &line[semi_pos + 1..];
+
+        let dot_pos = memchr(b'.', temp_str).unwrap();
+        let temp_int = unsafe { std::str::from_utf8_unchecked(&temp_str[..dot_pos]) };
+        let temp_dec = unsafe { std::str::from_utf8_unchecked(&temp_str[dot_pos + 1..]) };
+
         let temp_int: i16 = temp_int.parse().unwrap();
         let temp_dec: i16 = temp_dec.parse().unwrap();
         let mut temp: i16 = temp_int.abs() * 10 + temp_dec.abs();
@@ -88,9 +92,9 @@ pub fn thread(
 }
 
 fn merge_stations(
-    thread_data: Vec<HashMap<String, ProcessedStation>>,
-) -> HashMap<String, ProcessedStation> {
-    let mut result: HashMap<String, ProcessedStation> = HashMap::new();
+    thread_data: Vec<HashMap<Name, ProcessedStation>>,
+) -> HashMap<Name, ProcessedStation> {
+    let mut result: HashMap<Name, ProcessedStation> = HashMap::new();
     for thread_stations in thread_data {
         for (_name, s) in thread_stations {
             match result.get_mut(&s.name) {
@@ -132,7 +136,7 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
         })
         .collect();
 
-    let thread_data: Vec<HashMap<String, ProcessedStation>> =
+    let thread_data: Vec<HashMap<Name, ProcessedStation>> =
         threads.into_iter().map(|t| t.join().unwrap()).collect();
 
     let mut stations: Vec<_> = merge_stations(thread_data)
@@ -153,7 +157,9 @@ pub fn format_results(stations: &[ProcessedStation]) -> String {
         let min = station.min as f32 / 10.0;
         let avg = station.avg_tmp as f32 / 10.0 / station.avg_count as f32;
         let max = station.max as f32 / 10.0;
-        let _ = write!(&mut out, "{}={min:.1}/{avg:.1}/{max:.1}", station.name);
+        let name = std::str::from_utf8(&station.name).unwrap();
+
+        let _ = write!(&mut out, "{}={min:.1}/{avg:.1}/{max:.1}", name);
 
         if i != stations.len() - 1 {
             let _ = write!(&mut out, ", ");
