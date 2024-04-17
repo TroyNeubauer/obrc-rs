@@ -33,7 +33,10 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
         };
         let temp_int: i16 = temp_int.parse().unwrap();
         let temp_dec: i16 = temp_dec.parse().unwrap();
-        let temp: i16 = temp_int * 10 + temp_dec;
+        let mut temp: i16 = temp_int.abs() * 10 + temp_dec.abs();
+        if temp_int.is_negative() {
+            temp = -temp;
+        }
 
         match stations.iter_mut().find(|i| i.name == name) {
             Some(station) => {
@@ -72,7 +75,7 @@ pub fn format_results(stations: &[ProcessedStation]) -> String {
         let min = station.min as f32 / 10.0;
         let avg = station.avg_tmp as f32 / 10.0 / station.avg_count as f32;
         let max = station.max as f32 / 10.0;
-        let _ = write!(&mut out, "{}={min:.1}/{avg:.1}/{max:.1}", station.name,);
+        let _ = write!(&mut out, "{}={min:.1}/{avg:.1}/{max:.1}", station.name);
 
         if i != stations.len() - 1 {
             let _ = write!(&mut out, ", ");
