@@ -16,11 +16,9 @@ impl std::hash::Hasher for MyHasher {
     }
 
     fn write(&mut self, bytes: &[u8]) {
-        let len = std::cmp::min(bytes.len(), 8);
-        let ptr: *mut u8 = (&mut self.state as *mut u64).cast();
+        let ptr: *const u64 = bytes.as_ptr().cast();
 
-        let as_bytes: &mut [u8] = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
-        as_bytes.copy_from_slice(&bytes[..len]);
+        self.state = self.state ^ unsafe { std::ptr::read_unaligned(ptr) };
     }
 }
 
