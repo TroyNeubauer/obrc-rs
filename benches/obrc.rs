@@ -15,7 +15,8 @@ fn main() {
     let tree_dirty = Command::new("git").arg("diff").output().unwrap();
     let tree_dirty = !tree_dirty.stdout.is_empty();
     if tree_dirty {
-        println!("tree dirty (results will not be saved)");
+        println!("ERROR: tree dirty (results will not be saved)");
+        std::process::exit(1);
     }
 
     let hash = Command::new("git")

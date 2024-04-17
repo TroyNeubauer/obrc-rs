@@ -1,4 +1,5 @@
-use std::fmt::Write;
+use memmap2::MmapOptions;
+use std::fs::File;
 use std::path::Path;
 
 pub struct ProcessedStation {
@@ -11,8 +12,12 @@ pub struct ProcessedStation {
 
 pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
     let mut stations: Vec<ProcessedStation> = vec![];
-    let data = std::fs::read_to_string(input_path).unwrap();
-    for line in data.lines() {
+    let file = File::open(input_path).unwrap();
+    let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
+    let bytes: &[u8] = &mmap;
+
+    for line in bytes.split(|b| *b == b'\n') {
+        let line = std::str::from_utf8(line).unwrap();
         // `City of San Marino;30.0`
         let Some((name, temp)) = line.split_once(';') else {
             panic!("Line missing ; seperator! {line}");
@@ -52,6 +57,7 @@ pub fn format_results(stations: &[ProcessedStation]) -> String {
     let mut out = String::new();
     out.push_str("{");
     for (i, station) in stations.iter().enumerate() {
+        use std::fmt::Write;
         let avg = station.avg_tmp / station.avg_count as f32;
         let _ = write!(
             &mut out,
