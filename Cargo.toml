@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+memchr = "2.7.2"
 memmap2 = "0.9.4"
 
 [dev-dependencies]

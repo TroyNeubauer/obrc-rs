@@ -4,10 +4,10 @@ use std::path::Path;
 
 pub struct ProcessedStation {
     name: String,
-    min: i8,
-    avg_tmp: i32,
+    min: i16,
+    avg_tmp: i64,
     avg_count: usize,
-    max: i8,
+    max: i16,
 }
 
 pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
@@ -29,9 +29,9 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
         let Some((temp_int, temp_dec)) = temp_str.split_once('.') else {
             panic!("Line temp missing dot: {temp_str}");
         };
-        let temp_int: i8 = temp_int.parse().unwrap();
-        let temp_dec: i8 = temp_dec.parse().unwrap();
-        let temp: i8 = temp_int * 10 + temp_dec;
+        let temp_int: i16 = temp_int.parse().unwrap();
+        let temp_dec: i16 = temp_dec.parse().unwrap();
+        let temp: i16 = temp_int * 10 + temp_dec;
 
         match stations.iter_mut().find(|i| i.name == name) {
             Some(station) => {
@@ -42,14 +42,14 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
                     station.max = temp;
                 }
 
-                station.avg_tmp += temp as i32;
+                station.avg_tmp += temp as i64;
                 station.avg_count += 1;
             }
             None => {
                 stations.push(ProcessedStation {
                     name: name.to_owned(),
                     min: temp,
-                    avg_tmp: temp as i32,
+                    avg_tmp: temp as i64,
                     avg_count: 1,
                     max: temp,
                 });
