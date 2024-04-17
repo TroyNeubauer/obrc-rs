@@ -7,18 +7,18 @@ use std::sync::Arc;
 pub type HashMap = std::collections::HashMap<Name, ProcessedStation, MyHasher>;
 
 pub struct MyHasher {
-    state: u64,
+    state: [u8; 8],
 }
 
 impl std::hash::Hasher for MyHasher {
     fn finish(&self) -> u64 {
-        self.state
+        u64::from_ne_bytes(self.state)
     }
 
     fn write(&mut self, bytes: &[u8]) {
-        let ptr: *const u64 = bytes.as_ptr().cast();
-
-        self.state = self.state ^ unsafe { std::ptr::read_unaligned(ptr) };
+        for (i, b) in bytes.iter().enumerate() {
+            self.state[i % self.state.len()] ^= *b;
+        }
     }
 }
 
@@ -32,7 +32,7 @@ impl std::hash::BuildHasher for MyHasher {
 
 impl Default for MyHasher {
     fn default() -> Self {
-        Self { state: 0 }
+        Self { state: [0u8; 8] }
     }
 }
 
