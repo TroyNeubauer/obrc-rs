@@ -1,9 +1,42 @@
 use memchr::memchr;
 use memmap2::{Advice, Mmap, MmapOptions};
-use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
+
+pub type HashMap = std::collections::HashMap<Name, ProcessedStation, MyHasher>;
+
+pub struct MyHasher {
+    state: u64,
+}
+
+impl std::hash::Hasher for MyHasher {
+    fn finish(&self) -> u64 {
+        self.state
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        let len = std::cmp::min(bytes.len(), 8);
+        let ptr: *mut u8 = (&mut self.state as *mut u64).cast();
+
+        let as_bytes: &mut [u8] = unsafe { std::slice::from_raw_parts_mut(ptr, len) };
+        as_bytes.copy_from_slice(&bytes[..len]);
+    }
+}
+
+impl std::hash::BuildHasher for MyHasher {
+    type Hasher = Self;
+
+    fn build_hasher(&self) -> Self {
+        Default::default()
+    }
+}
+
+impl Default for MyHasher {
+    fn default() -> Self {
+        Self { state: 0 }
+    }
+}
 
 pub struct ProcessedStation {
     name: Vec<u8>,
@@ -28,12 +61,8 @@ pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
 
 pub type Name = Vec<u8>;
 
-pub fn thread(
-    data: Arc<Mmap>,
-    start_idx: usize,
-    end_idx: usize,
-) -> HashMap<Name, ProcessedStation> {
-    let mut stations: HashMap<Name, ProcessedStation> = HashMap::new();
+pub fn thread(data: Arc<Mmap>, start_idx: usize, end_idx: usize) -> HashMap {
+    let mut stations = HashMap::with_capacity_and_hasher(128, Default::default());
 
     let data = &data[start_idx..end_idx];
 
@@ -91,10 +120,9 @@ pub fn thread(
     stations
 }
 
-fn merge_stations(
-    thread_data: Vec<HashMap<Name, ProcessedStation>>,
-) -> HashMap<Name, ProcessedStation> {
-    let mut result: HashMap<Name, ProcessedStation> = HashMap::new();
+fn merge_stations(thread_data: Vec<HashMap>) -> HashMap {
+    let mut result = HashMap::with_capacity_and_hasher(128, Default::default());
+
     for thread_stations in thread_data {
         for (_name, s) in thread_stations {
             match result.get_mut(&s.name) {
@@ -136,8 +164,7 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
         })
         .collect();
 
-    let thread_data: Vec<HashMap<Name, ProcessedStation>> =
-        threads.into_iter().map(|t| t.join().unwrap()).collect();
+    let thread_data: Vec<HashMap> = threads.into_iter().map(|t| t.join().unwrap()).collect();
 
     let mut stations: Vec<_> = merge_stations(thread_data)
         .into_iter()
