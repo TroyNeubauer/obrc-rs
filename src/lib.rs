@@ -1,4 +1,5 @@
 use memmap2::{Advice, Mmap, MmapOptions};
+use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
@@ -24,8 +25,12 @@ pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
     poses
 }
 
-pub fn thread(data: Arc<Mmap>, start_idx: usize, end_idx: usize) -> Vec<ProcessedStation> {
-    let mut stations: Vec<ProcessedStation> = vec![];
+pub fn thread(
+    data: Arc<Mmap>,
+    start_idx: usize,
+    end_idx: usize,
+) -> HashMap<String, ProcessedStation> {
+    let mut stations: HashMap<String, ProcessedStation> = HashMap::new();
 
     let data = &data[start_idx..end_idx];
 
@@ -52,7 +57,7 @@ pub fn thread(data: Arc<Mmap>, start_idx: usize, end_idx: usize) -> Vec<Processe
             temp = -temp;
         }
 
-        match stations.iter_mut().find(|i| i.name == name) {
+        match stations.get_mut(name) {
             Some(station) => {
                 if temp < station.min {
                     station.min = temp;
@@ -65,13 +70,16 @@ pub fn thread(data: Arc<Mmap>, start_idx: usize, end_idx: usize) -> Vec<Processe
                 station.avg_count += 1;
             }
             None => {
-                stations.push(ProcessedStation {
-                    name: name.to_owned(),
-                    min: temp,
-                    avg_tmp: temp as i64,
-                    avg_count: 1,
-                    max: temp,
-                });
+                stations.insert(
+                    name.to_owned(),
+                    ProcessedStation {
+                        name: name.to_owned(),
+                        min: temp,
+                        avg_tmp: temp as i64,
+                        avg_count: 1,
+                        max: temp,
+                    },
+                );
             }
         }
     }
@@ -79,11 +87,13 @@ pub fn thread(data: Arc<Mmap>, start_idx: usize, end_idx: usize) -> Vec<Processe
     stations
 }
 
-fn merge_stations(thread_data: Vec<Vec<ProcessedStation>>) -> Vec<ProcessedStation> {
-    let mut result: Vec<ProcessedStation> = vec![];
+fn merge_stations(
+    thread_data: Vec<HashMap<String, ProcessedStation>>,
+) -> HashMap<String, ProcessedStation> {
+    let mut result: HashMap<String, ProcessedStation> = HashMap::new();
     for thread_stations in thread_data {
-        for s in thread_stations {
-            match result.iter_mut().find(|i| i.name == s.name) {
+        for (_name, s) in thread_stations {
+            match result.get_mut(&s.name) {
                 Some(station) => {
                     if s.min < station.min {
                         station.min = s.min;
@@ -96,7 +106,7 @@ fn merge_stations(thread_data: Vec<Vec<ProcessedStation>>) -> Vec<ProcessedStati
                     station.avg_count += s.avg_count;
                 }
                 None => {
-                    result.push(s);
+                    result.insert(s.name.clone(), s);
                 }
             }
         }
@@ -122,10 +132,13 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
         })
         .collect();
 
-    let thread_data: Vec<Vec<ProcessedStation>> =
+    let thread_data: Vec<HashMap<String, ProcessedStation>> =
         threads.into_iter().map(|t| t.join().unwrap()).collect();
 
-    let mut stations = merge_stations(thread_data);
+    let mut stations: Vec<_> = merge_stations(thread_data)
+        .into_iter()
+        .map(|(_name, s)| s)
+        .collect();
 
     stations.sort_unstable_by_key(|s| s.name.clone());
 
