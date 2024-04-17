@@ -1,6 +1,7 @@
-use memmap2::MmapOptions;
+use memmap2::{Mmap, MmapOptions};
 use std::fs::File;
 use std::path::Path;
+use std::sync::Arc;
 
 pub struct ProcessedStation {
     name: String,
@@ -10,14 +11,25 @@ pub struct ProcessedStation {
     max: i16,
 }
 
-pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
+pub fn split_file(num_threads: usize, data: &[u8]) -> Vec<usize> {
+    let mut poses = vec![0];
+    for i in 1..num_threads {
+        let start = data.len() / num_threads * i;
+        let newline = memchr::memchr(b'\n', &data[start..]).expect("Failed to find newline");
+        poses.push(start + newline + 1);
+    }
+
+    poses
+}
+
+pub fn thread(data: Arc<Mmap>, start_idx: usize, end_idx: usize) -> Vec<ProcessedStation> {
     let mut stations: Vec<ProcessedStation> = vec![];
-    let file = File::open(input_path).unwrap();
-    let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
+
+    let data = &data[start_idx..end_idx];
 
     let mut last_pos = 0;
-    for next_pos in memchr::memchr_iter(b'\n', &mmap) {
-        let line = &mmap[last_pos..next_pos];
+    for next_pos in memchr::memchr_iter(b'\n', &data) {
+        let line = &data[last_pos..next_pos];
         last_pos = next_pos + 1;
         if line.is_empty() {
             continue;
@@ -61,6 +73,57 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
             }
         }
     }
+
+    stations
+}
+
+fn merge_stations(thread_data: Vec<Vec<ProcessedStation>>) -> Vec<ProcessedStation> {
+    let mut result: Vec<ProcessedStation> = vec![];
+    for thread_stations in thread_data {
+        for s in thread_stations {
+            match result.iter_mut().find(|i| i.name == s.name) {
+                Some(station) => {
+                    if s.min < station.min {
+                        station.min = s.min;
+                    }
+                    if s.max > station.max {
+                        station.max = s.max;
+                    }
+
+                    station.avg_tmp += s.avg_tmp;
+                    station.avg_count += s.avg_count;
+                }
+                None => {
+                    result.push(s);
+                }
+            }
+        }
+    }
+
+    result
+}
+
+pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
+    let file = File::open(input_path).unwrap();
+    let mmap = unsafe { MmapOptions::new().map(&file).unwrap() };
+    let data: Arc<Mmap> = Arc::new(mmap);
+
+    let num_threads = num_cpus::get();
+    let poses = split_file(num_threads, &data);
+
+    let threads: Vec<_> = (0..poses.len())
+        .map(|i| {
+            let data = Arc::clone(&data);
+            let start = poses[i];
+            let end = poses.get(i + 1).cloned().unwrap_or(data.len());
+            std::thread::spawn(move || thread(data, start, end))
+        })
+        .collect();
+
+    let thread_data: Vec<Vec<ProcessedStation>> =
+        threads.into_iter().map(|t| t.join().unwrap()).collect();
+
+    let mut stations = merge_stations(thread_data);
 
     stations.sort_unstable_by_key(|s| s.name.clone());
 
