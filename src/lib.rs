@@ -28,6 +28,47 @@ pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
 
 pub type Name = Vec<u8>;
 
+fn parse_fixed_point(num: &[u8]) -> i16 {
+    let mut pos = 0;
+    let neg = num[0] == b'-';
+    if neg {
+        pos += 1;
+    }
+    let mut r = 0i16;
+
+    r += (num[pos] - b'0') as i16;
+    pos += 1;
+
+    if num[pos] != b'.' {
+        r = r * 10 + (num[pos] - b'0') as i16;
+        pos += 1;
+    }
+
+    debug_assert_eq!(num[pos], b'.');
+    pos += 1;
+    r = r * 10 + (num[pos] - b'0') as i16;
+
+    if neg {
+        -r
+    } else {
+        r
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse() {
+        assert_eq!(parse_fixed_point(b"-25.3"), -253);
+        assert_eq!(parse_fixed_point(b"0.0"), 0);
+        assert_eq!(parse_fixed_point(b"1.0"), 10);
+        assert_eq!(parse_fixed_point(b"1.5"), 15);
+        assert_eq!(parse_fixed_point(b"-25.3"), -253);
+    }
+}
+
 pub fn thread(
     data: Arc<Mmap>,
     start_idx: usize,
@@ -50,16 +91,7 @@ pub fn thread(
         let name = &line[..semi_pos];
         let temp_str = &line[semi_pos + 1..];
 
-        let dot_pos = memchr(b'.', temp_str).unwrap();
-        let temp_int = unsafe { std::str::from_utf8_unchecked(&temp_str[..dot_pos]) };
-        let temp_dec = unsafe { std::str::from_utf8_unchecked(&temp_str[dot_pos + 1..]) };
-
-        let temp_int: i16 = temp_int.parse().unwrap();
-        let temp_dec: i16 = temp_dec.parse().unwrap();
-        let mut temp: i16 = temp_int.abs() * 10 + temp_dec.abs();
-        if temp_int.is_negative() {
-            temp = -temp;
-        }
+        let temp = parse_fixed_point(temp_str);
 
         match stations.get_mut(name) {
             Some(station) => {
