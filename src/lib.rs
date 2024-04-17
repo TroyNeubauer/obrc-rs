@@ -4,10 +4,10 @@ use std::path::Path;
 
 pub struct ProcessedStation {
     name: String,
-    min: f32,
-    avg_tmp: f32,
+    min: i8,
+    avg_tmp: i32,
     avg_count: usize,
-    max: f32,
+    max: i8,
 }
 
 pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
@@ -18,15 +18,20 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
 
     for line in bytes.split(|b| *b == b'\n') {
         if line.is_empty() {
-            println!("Found empty line");
             continue;
         }
+
         let line = std::str::from_utf8(line).unwrap();
         // `City of San Marino;30.0`
-        let Some((name, temp)) = line.split_once(';') else {
+        let Some((name, temp_str)) = line.split_once(';') else {
             panic!("Line missing ; seperator! {line}");
         };
-        let temp: f32 = temp.parse().unwrap();
+        let Some((temp_int, temp_dec)) = temp_str.split_once('.') else {
+            panic!("Line temp missing dot: {temp_str}");
+        };
+        let temp_int: i8 = temp_int.parse().unwrap();
+        let temp_dec: i8 = temp_dec.parse().unwrap();
+        let temp: i8 = temp_int * 10 + temp_dec;
 
         match stations.iter_mut().find(|i| i.name == name) {
             Some(station) => {
@@ -37,14 +42,14 @@ pub fn solution(input_path: &Path) -> Vec<ProcessedStation> {
                     station.max = temp;
                 }
 
-                station.avg_tmp += temp;
+                station.avg_tmp += temp as i32;
                 station.avg_count += 1;
             }
             None => {
                 stations.push(ProcessedStation {
                     name: name.to_owned(),
                     min: temp,
-                    avg_tmp: temp,
+                    avg_tmp: temp as i32,
                     avg_count: 1,
                     max: temp,
                 });
@@ -62,7 +67,7 @@ pub fn format_results(stations: &[ProcessedStation]) -> String {
     out.push_str("{");
     for (i, station) in stations.iter().enumerate() {
         use std::fmt::Write;
-        let avg = station.avg_tmp / station.avg_count as f32;
+        let avg = station.avg_tmp as f32 / 10.0 / station.avg_count as f32;
         let _ = write!(
             &mut out,
             "{}={:.1}/{:.1}/{:.1}",
