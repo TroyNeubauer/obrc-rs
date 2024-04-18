@@ -1,16 +1,18 @@
+use fxhash::FxHashMap;
 use memchr::memchr;
 use memmap2::{Advice, Mmap, MmapOptions};
-use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
 use std::sync::Arc;
 
+pub type HashMap<K, V> = FxHashMap<K, V>;
+
 pub struct ProcessedStation {
-    name: Vec<u8>,
-    min: i16,
-    avg_tmp: i64,
-    avg_count: usize,
-    max: i16,
+    pub name: Vec<u8>,
+    pub min: i16,
+    pub avg_tmp: i64,
+    pub avg_count: usize,
+    pub max: i16,
 }
 
 pub fn split_file(num_threads: usize, mmap: &Mmap) -> Vec<usize> {
@@ -74,7 +76,8 @@ pub fn thread(
     start_idx: usize,
     end_idx: usize,
 ) -> HashMap<Name, ProcessedStation> {
-    let mut stations: HashMap<Name, ProcessedStation> = HashMap::new();
+    let mut stations: HashMap<Name, ProcessedStation> =
+        HashMap::with_capacity_and_hasher(128, Default::default());
 
     let data = &data[start_idx..end_idx];
 
@@ -126,7 +129,9 @@ pub fn thread(
 fn merge_stations(
     thread_data: Vec<HashMap<Name, ProcessedStation>>,
 ) -> HashMap<Name, ProcessedStation> {
-    let mut result: HashMap<Name, ProcessedStation> = HashMap::new();
+    let mut result: HashMap<Name, ProcessedStation> =
+        HashMap::with_capacity_and_hasher(128, Default::default());
+
     for thread_stations in thread_data {
         for (_name, s) in thread_stations {
             match result.get_mut(&s.name) {
